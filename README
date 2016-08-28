@@ -1,0 +1,9 @@
+This is an example app for sending CPU and memory usage info from
+a Linux system to Keen (keen.io).  Requires Ruby and Bundler.
+
+Run `bundle install` to install gems. Rename or copy .env-template to
+just .env and edit it to add your Keen project settings and other info.
+
+Then run `./keen-monitor.io` to begin sending data to Keen.
+
+Hit Ctrl+C to exit.
