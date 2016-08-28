@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Keen Monitor</title>
+    <style type="text/css">
+    body   { font-family: sans-serif; }
+    .row { clear: left; }
+    .cell {
+        float: left;
+        height: 300px;
+        line-height: 300px;
+        border: 10px solid white;
+        box-sizing: border-box;
+        border-radius: 20px;
+        text-align: center;
+    }
+    .cell.full { width: 100%; }
+    .cell.half { width: 50%; }
+    .cell.third { width: 33%; }
+    .content { display: inline-block; vertical-align: middle; line-height: normal; }
+    .red   { background-color: #600; color: white; }
+    .green { background-color: #060; color: white; }
+    .blue  { background-color: #006; color: white; }
+    .reading { font-size: 48px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h3>Keen Monitor</h3>
+
+    <div class="row">
+        <div class="cell third red">
+          <div class="content">
+            <h4>Total readings</h4>
+            <p class="reading" id="total_readings"></p>
+          </div>
+        </div>
+        <div class="cell third green">
+          <div class="content">
+            <h4>CPU average</h4>
+            <p class="reading" id="cpu_average"></p>
+          </div>
+        </div>
+        <div class="cell third blue">
+          <div class="content">
+            <h4>Memory average</h4>
+            <p class="reading" id="mem_average"></p>
+          </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="cell full">
+          <div class="content" id="res_chart"></div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.1.0.min.js" type="text/javascript"></script>
+    <script src="https://d26b395fwzu5fz.cloudfront.net/3.4.1/keen.min.js" type="text/javascript"></script>
+    <script type="text/javascript">
+        // Create a client instance
+        var client = new Keen({
+            projectId: "project id here",
+            readKey: "read key here"
+        });
+
+        var baseQueryOptions = {
+            event_collection: "readings",
+            timeframe: {
+                "start": "2016-08-27T00:00:00.000Z",
+                "end": "2016-08-29T00:00:00.000Z"
+            }
+        };
+
+        var countQuery = new Keen.Query("count", $.extend({}, baseQueryOptions));
+        var avgCpuQuery = new Keen.Query("average", $.extend({}, baseQueryOptions, {
+            "target_property": "cpu_usage",
+            "timeframe": "this_2_minutes"
+        }));
+        var avgMemQuery = new Keen.Query("average", $.extend({}, baseQueryOptions, {
+            "target_property": "mem_usage",
+            "timeframe": "this_2_minutes"
+        }));
+        var cpuChartQuery = new Keen.Query("average", $.extend({}, baseQueryOptions, {
+            "target_property": "cpu_usage",
+            "interval": "minutely",
+            "timeframe": "this_4_hours"
+        }));
+        var memChartQuery = new Keen.Query("average", $.extend({}, baseQueryOptions, {
+            "target_property": "mem_usage",
+            "interval": "minutely",
+            "timeframe": "this_4_hours"
+        }));
+
+        Keen.ready(function() {
+
+            // execute queries for metrics
+            var metricResult = client.run([countQuery, avgCpuQuery, avgMemQuery], function (err, res) {
+                if (err) { console.error(err); return; }
+                console.log('metric', res);
+                $('#total_readings').text(res[0].result);
+                $('#cpu_average').text(Math.round(res[1].result * 10000) / 100 + ' %');
+                $('#mem_average').text(Math.round(res[2].result * 10000) / 100 + ' %');
+            });
+
+            // set up resource chart
+            var chart = new Keen.Dataviz()
+                .el(document.getElementById("res_chart"))
+                .chartType("linechart")
+                .width(800)
+                .colors(['green', 'red'])
+                .title("Resource usage (last four hours, max)")
+                .chartOptions({
+                    vAxis: {
+                        viewWindowMode: 'explicit',
+                        viewWindow: { min: 0, max: 100 }
+                    },
+                    legend: 'bottom'
+                })
+                .prepare();
+
+            // execute queries for resource chart
+            var chartResult = client.run([cpuChartQuery, memChartQuery], function (err, res) {
+                if (err) { chart.err(err.message); return; }
+                console.log('chart', res);
+
+                // combine both results into a single series with two categories
+                for (var i = 0; i < res[0].result.length; i++) {
+                    var cpuValue = res[0].result[i]['value'];
+                    if (cpuValue || cpuValue === 0) { cpuValue *= 100; }
+                    var memValue = res[1].result[i]['value'];
+                    if (memValue || memValue === 0) { memValue *= 100; }
+                    res[0].result[i]['value'] = [
+                        { category: "CPU", result: cpuValue },
+                        { category: "Memory", result: memValue },
+                    ];
+                }
+
+                chart.parseRawData(res[0]).render();
+            });
+
+            // refresh data every 10 seconds
+            window.setInterval(function() {
+                metricResult.refresh();
+                chartResult.refresh();
+            }, 10000);
+        });
+    </script>
+</body>
+</html>

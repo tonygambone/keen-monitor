@@ -7,3 +7,8 @@ just .env and edit it to add your Keen project settings and other info.
 Then run `./keen-monitor.io` to begin sending data to Keen.
 
 Hit Ctrl+C to exit.
+
+---
+
+The index.html file contains a JavaScript app to display these readings
+in a dashboard style. Fill in the Keen API details before using.
